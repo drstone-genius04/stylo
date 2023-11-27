@@ -1,0 +1,4 @@
+nltk
+textstat
+pandas
+streamlit
