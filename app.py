@@ -1,6 +1,7 @@
 import streamlit as st
 import style_features
 import pandas as pd
+from gensim import analyze_authorship
 
 st.title("Advanced Stylometric Analysis")
 
@@ -28,6 +29,7 @@ if st.button("Analyze Texts"):
         "passive_voice_usage": style_features.count_passive_voice(text2)
     }
     
+    
     # Calculate a simple score for authorship likelihood
     numeric_features = ['semicolon_usage', 'capitalization_after_full_stops', 'lexical_diversity', 'average_sentence_length', 'average_word_length', 'passive_voice_usage']
     score = sum(abs(features1[key] - features2[key]) for key in numeric_features)
@@ -51,3 +53,6 @@ if st.button("Analyze Texts"):
     authorship_likelihood = max(0, min((1 - score / max_possible_score) * 100, 100))
 
     st.write("Likelihood of the Same Author:", f"{authorship_likelihood:.2f}%")
+
+    gensim_similarity = analyze_authorship(text1, text2)
+    st.write(f"Gensim Document Similarity Score: {gensim_similarity:.2f}")
