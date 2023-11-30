@@ -1,58 +1,76 @@
 import streamlit as st
-import style_features
-import pandas as pd
-from gensim import analyze_authorship
+import PyPDF2
+import math
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+import string
+import nltk
 
-st.title("Advanced Stylometric Analysis")
+nltk.download('punkt')
+nltk.download('stopwords')
 
-text1 = st.text_area("Enter Text 1", "Type or paste text here.")
-text2 = st.text_area("Enter Text 2", "Type or paste text here.")
+stop_words = set(stopwords.words('english'))
 
-if st.button("Analyze Texts"):
-    features1 = {
-        "semicolon_usage": style_features.uses_semicolon(text1),
-        "capitalization_after_full_stops": style_features.capitalizes_after_punctuation(text1, '.'),
-        "vocabulary_grade": style_features.vocabulary_grade_level(text1),
-        "lexical_diversity": style_features.lexical_diversity(text1),
-        "average_sentence_length": style_features.average_sentence_length(text1),
-        "average_word_length": style_features.average_word_length(text1),
-        "passive_voice_usage": style_features.count_passive_voice(text1)
-    }
+# Title of the app
+st.title('Author Comparison App')
 
-    features2 = {
-        "semicolon_usage": style_features.uses_semicolon(text2),
-        "capitalization_after_full_stops": style_features.capitalizes_after_punctuation(text2, '.'),
-        "vocabulary_grade": style_features.vocabulary_grade_level(text2),
-        "lexical_diversity": style_features.lexical_diversity(text2),
-        "average_sentence_length": style_features.average_sentence_length(text2),
-        "average_word_length": style_features.average_word_length(text2),
-        "passive_voice_usage": style_features.count_passive_voice(text2)
-    }
-    
-    
-    # Calculate a simple score for authorship likelihood
-    numeric_features = ['semicolon_usage', 'capitalization_after_full_stops', 'lexical_diversity', 'average_sentence_length', 'average_word_length', 'passive_voice_usage']
-    score = sum(abs(features1[key] - features2[key]) for key in numeric_features)
-    authorship_likelihood = (1 - score / len(numeric_features)) * 100
+# Function to read PDF files
+def read_pdf(file):
+    pdf_file_obj = PyPDF2.PdfFileReader(file)
+    text = ''
+    for page_num in range(pdf_file_obj.numPages):
+        page_obj = pdf_file_obj.getPage(page_num)
+        text += page_obj.extractText()
+    return text
 
-# Displaying the results
-    st.write("Feature Analysis for Text 1:", features1)
-    st.write("Feature Analysis for Text 2:", features2)
-# Creating DataFrames for visualization
-    df_features1 = pd.DataFrame(list(features1.items()), columns=['Feature', 'Text 1'])
-    df_features2 = pd.DataFrame(list(features2.items()), columns=['Feature', 'Text 2'])
+# Text area for the first author's text
+author1_text = st.text_area('Enter the first author\'s text here')
 
-    # Plotting the features
-    st.bar_chart(df_features1.set_index('Feature'))
-    st.bar_chart(df_features2.set_index('Feature'))
+# File uploader for the first author's PDF
+author1_file = st.file_uploader('Upload the first author\'s PDF', type='pdf')
 
-    # Fixing the likelihood percentage calculation
-    numeric_differences = [abs(features1[key] - features2[key]) for key in numeric_features if isinstance(features1[key], (int, float)) and isinstance(features2[key], (int, float))]
-    score = sum(numeric_differences)
-    max_possible_score = len(numeric_features) * 100  # Assuming each feature can differ by up to 100%
-    authorship_likelihood = max(0, min((1 - score / max_possible_score) * 100, 100))
+# If a PDF is uploaded, read the text from it
+if author1_file is not None:
+    author1_text = read_pdf(author1_file)
 
-    st.write("Likelihood of the Same Author:", f"{authorship_likelihood:.2f}%")
+# Text area for the second author's text
+author2_text = st.text_area('Enter the second author\'s text here')
 
-    gensim_similarity = analyze_authorship(text1, text2)
-    st.write(f"Gensim Document Similarity Score: {gensim_similarity:.2f}")
+# File uploader for the second author's PDF
+author2_file = st.file_uploader('Upload the second author\'s PDF', type='pdf')
+
+# If a PDF is uploaded, read the text from it
+if author2_file is not None:
+    author2_text = read_pdf(author2_file)
+
+# Function to compare the writing styles using the Delta Method
+def preprocess_text(text):
+    """Preprocess a text: lower case, remove punctuation and stop words."""
+    tokens = word_tokenize(text.lower())
+    tokens = [token for token in tokens if token not in string.punctuation]
+    tokens = [token for token in tokens if token not in stop_words]
+    return ' '.join(tokens)
+
+def compare_styles(text1, text2):
+    text1 = preprocess_text(text1)
+    text2 = preprocess_text(text2)
+
+    # Vectorize texts into Count Vectors
+    vectorizer = CountVectorizer().fit([text1, text2])
+    vectors = vectorizer.transform([text1, text2])
+
+    # Calculate cosine similarity between the vectors
+    similarity = cosine_similarity(vectors[0:1], vectors[1:2])
+
+    return {"Similarity": similarity[0][0]}
+
+
+# Button to compare the writing styles
+if st.button('Compare'):
+    # Compare the writing styles and display the results
+    if author1_text and author2_text:
+        comparison_results = compare_styles(author1_text, author2_text)
+        st.write('The comparison results are:', str(math.ceil(comparison_results['Similarity']*100)) + "% Similarity")
+        # st.bar_chart(comparison_results)
